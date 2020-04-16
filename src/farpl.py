@@ -54,7 +54,7 @@ def find_and_replace(path, find, replace):
 	if replace != None:
 		for file in occurrences.keys():
 			backup = file + BACKUP_EXT
-			shutil.copy2(file, backup)
+			copy_file(file, backup)
 			with open(backup, 'r') as inp:
 				with open(file, 'w') as out:
 					for line in inp:
@@ -85,6 +85,24 @@ def find_and_replace(path, find, replace):
 
 #-------------------------------------------------------------------------------
 #
+def undo(path):
+	# determine backup files
+	backups = glob.glob(path + '/**/*' + BACKUP_EXT)
+	if len(backups) > 0:
+		print("restoring files...")
+		for backup in backups:
+			file = backup[:-len(BACKUP_EXT)]
+			print('  ' + file)
+			copy_file(backup, file)
+			os.remove(backup)
+		# end for
+	else:
+		print("nothing to restore.")
+	# end if
+# end function
+
+#-------------------------------------------------------------------------------
+#
 def count_occurrences(filename, find):
 	pretty_filename = colored(filename, 'cyan')
 	total_count = 0
@@ -104,6 +122,13 @@ def count_occurrences(filename, find):
 
 #-------------------------------------------------------------------------------
 #
+def copy_file(src, dst):
+	# copy data and metadata
+	shutil.copy2(src, dst)
+# end function
+
+#-------------------------------------------------------------------------------
+#
 def line_count(line, find):
 	return line.count(find)
 # end function
@@ -117,7 +142,7 @@ def line_replace(line, old, new):
 #-------------------------------------------------------------------------------
 #
 def get_files(path):
-	return [file for file in glob.glob(path + '/**') if not file.endswith(BACKUP_EXT)]
+	return [file for file in glob.glob(path + '/**') if os.path.isfile(file) and not file.endswith(BACKUP_EXT)]
 # end function
 
 #-------------------------------------------------------------------------------
@@ -127,16 +152,22 @@ def get_files(path):
 def main():
 	# parse command line
 	parser = argparse.ArgumentParser()
-	parser.add_argument("find", 
+	parser.add_argument('find', nargs='?',
 		help="text/pattern to find")
-	parser.add_argument("replace", 
+	parser.add_argument('replace', nargs='?',
 		help="replacement text")
-	parser.add_argument("path", 
+	parser.add_argument('path', nargs='?', default=".",
 		help="path to file or directory")
+	parser.add_argument('-u', '--undo', action='store_true',
+		help="undo the last replace operation")
 	args = parser.parse_args()
 	print(args)
 
-	find_and_replace(args.path, args.find, args.replace)
+	if args.undo:
+		undo(args.path)
+	else:
+		find_and_replace(args.path, args.find, args.replace)
+	# end if
 	#count_occurrences(args.path, args.find)
 # end function
 
