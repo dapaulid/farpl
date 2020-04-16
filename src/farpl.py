@@ -14,6 +14,7 @@
 import argparse
 import os
 import glob
+import shutil
 
 # third-party
 try:
@@ -28,6 +29,7 @@ except ImportError:
 # constants
 #-------------------------------------------------------------------------------
 #
+BACKUP_EXT = '_farpl.bak'
 HRULE = colored('-' * 80, attrs=['dark'])
 
 #-------------------------------------------------------------------------------
@@ -48,16 +50,37 @@ def find_and_replace(path, find, replace):
 		# end if
 	# end for
 
+	# do replace
+	if replace != None:
+		for file in occurrences.keys():
+			backup = file + BACKUP_EXT
+			shutil.copy2(file, backup)
+			with open(backup, 'r') as inp:
+				with open(file, 'w') as out:
+					for line in inp:
+						replaced = line_replace(line, find, replace)
+						out.write(replaced)
+				# end with
+			# end with
+		# end for
+	# end if
+
 	# print summary
 	if total_count > 0:
 		# determine extensions of matching files
 		extensions = set(['*' + os.path.splitext(file)[1] for file in occurrences.keys()])
-		print("\n'%s' was found %d times in %d out of %d files (%s)." 
-			% (colored(find, 'red'), total_count, len(occurrences), len(files), ", ".join(extensions)))
+		if replace == None:
+			print("\n'%s' was found %d times in %d out of %d files (%s)." 
+				% (colored(find, 'red'), total_count, len(occurrences), len(files), ", ".join(extensions)))
+		else:
+			print("\n'%s' was replaced with '%s' %d times in %d out of %d files (%s)." 
+				% (colored(find, 'red'), colored(replace, 'green'), total_count, len(occurrences), len(files), ", ".join(extensions)))
+		# end if
 	else:	
-		print("\n'%s' was found 0 times in a total of %d files.")
+		print("\n'%s' was found 0 times in a total of %d files."
+			% (colored(find, 'red'), len(files)))
 	# end if
-	
+
 # end function
 
 #-------------------------------------------------------------------------------
@@ -94,7 +117,7 @@ def line_replace(line, old, new):
 #-------------------------------------------------------------------------------
 #
 def get_files(path):
-	return glob.glob(path + '/**')
+	return [file for file in glob.glob(path + '/**') if not file.endswith(BACKUP_EXT)]
 # end function
 
 #-------------------------------------------------------------------------------
