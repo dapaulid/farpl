@@ -68,6 +68,7 @@ def find_and_replace(path, find, replace):
 	matched_files = occurrences.keys()
 
 	# do replace
+	replace_count = 0
 	if replace != None:
 		for file in matched_files:
 			backup = file + BACKUP_EXT
@@ -75,7 +76,11 @@ def find_and_replace(path, find, replace):
 			with open(backup, 'r') as inp:
 				with open(file, 'w') as out:
 					for line in inp:
-						replaced = line_replace(line, find, replace)
+						subst_replace = replace.replace('@{count}', str(replace_count))
+						replaced = line_replace(line, find, subst_replace)
+						if replaced != line:
+							replace_count += 1
+						# end if
 						out.write(replaced)
 				# end with
 			# end with

@@ -6,7 +6,7 @@
 		{
 			"label": "Test",
 			"type": "shell",
-			"command": "src/farpl.py -p test/input needle NEEDLE",
+			"command": "src/farpl.py -p test/input needle NEEDLE && src/farpl.py -p test/input --undo",
 			"group": {
 				"kind": "build",
 				"isDefault": true
