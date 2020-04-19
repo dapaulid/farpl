@@ -31,6 +31,9 @@ except ImportError:
 #
 BACKUP_EXT = '_farpl.bak'
 HRULE = colored('-' * 80, attrs=['dark'])
+EXCLUDE_DIRS = ['.svn', '.git']
+TEXTCHARS = bytearray({7,8,9,10,12,13,27} | set(range(0x20, 0x100)) - {0x7f})
+
 
 #-------------------------------------------------------------------------------
 # main
@@ -40,8 +43,21 @@ def find_and_replace(path, find, replace):
 	files = get_files(path)
 	occurrences = {}
 	total_count = 0
+	skipped_files = []
+	failed_files = []
 	print(HRULE)	
 	for file in files:
+		try:
+			if (is_binary_file(file)):
+				#print("%s: skipping binary file" % (file))
+				skipped_files.append(file)
+				continue
+			# end if
+		except IOError as e:
+			print('[%s] error: %s' % (file, e.strerror))
+			failed_files.append(file)
+			continue
+		# end try
 		count = count_occurrences(file, find)
 		if count > 0:
 			occurrences[file] = count
@@ -49,10 +65,11 @@ def find_and_replace(path, find, replace):
 			print(HRULE)
 		# end if
 	# end for
+	matched_files = occurrences.keys()
 
 	# do replace
 	if replace != None:
-		for file in occurrences.keys():
+		for file in matched_files:
 			backup = file + BACKUP_EXT
 			copy_file(file, backup)
 			with open(backup, 'r') as inp:
@@ -65,20 +82,23 @@ def find_and_replace(path, find, replace):
 		# end for
 	# end if
 
+	print("total files    : " + file_summary(files))
+	print("matched files  : " + file_summary(matched_files))
+	print("skipped files  : " + file_summary(skipped_files))
+	print("failed files   : " + file_summary(failed_files))
+
 	# print summary
 	if total_count > 0:
-		# determine extensions of matching files
-		extensions = set(['*' + os.path.splitext(file)[1] for file in occurrences.keys()])
 		if replace == None:
-			print("\n'%s' was found %d times in %d out of %d files (%s)." 
-				% (colored(find, 'red'), total_count, len(occurrences), len(files), ", ".join(extensions)))
+			print("\n'%s' was found %d times in %d files." 
+				% (colored(find, 'red'), total_count, len(matched_files)))
 		else:
-			print("\n'%s' was replaced with '%s' %d times in %d out of %d files (%s)." 
-				% (colored(find, 'red'), colored(replace, 'green'), total_count, len(occurrences), len(files), ", ".join(extensions)))
+			print("\n'%s' was replaced with '%s' %d times in %d files." 
+				% (colored(find, 'red'), colored(replace, 'green'), total_count, len(matched_files)))
 		# end if
 	else:	
-		print("\n'%s' was found 0 times in a total of %d files."
-			% (colored(find, 'red'), len(files)))
+		print("\n'%s' was not found."
+			% (colored(find, 'red')))
 	# end if
 
 # end function
@@ -87,7 +107,7 @@ def find_and_replace(path, find, replace):
 #
 def undo(path):
 	# determine backup files
-	backups = glob.glob(path + '/**/*' + BACKUP_EXT)
+	backups = get_backups(path)
 	if len(backups) > 0:
 		print("restoring files...")
 		for backup in backups:
@@ -141,8 +161,54 @@ def line_replace(line, old, new):
 
 #-------------------------------------------------------------------------------
 #
+def is_binary_file(filename):
+	# https://stackoverflow.com/questions/898669/how-can-i-detect-if-a-file-is-binary-non-text-in-python
+	with open(filename, 'rb') as f:
+		bytes = f.read(1024)
+		return bool(bytes.translate(None, TEXTCHARS))
+# end function
+
+#-------------------------------------------------------------------------------
+#
+def file_summary(files):
+	summary = "{0:>5d}".format(len(files))
+	if len(files) > 0:
+		unique_ext = set(['*' + os.path.splitext(file)[1] for file in files])
+		if len(unique_ext) <= 16:
+			summary += " (%s)" % (", ".join(unique_ext))
+		# end if
+	# end if
+	return summary
+# end function
+
+#-------------------------------------------------------------------------------
+#
 def get_files(path):
-	return [file for file in glob.glob(path + '/**') if os.path.isfile(file) and not file.endswith(BACKUP_EXT)]
+	files = []
+	for dirpath, dirnames, filenames in os.walk(path):
+		# filter directories in-place
+		dirnames[:] = [dirname for dirname in dirnames 
+			if dirname not in EXCLUDE_DIRS]
+		# add files
+		files += [os.path.join(dirpath, filename) for filename in filenames 
+			if not filename.endswith(BACKUP_EXT)]
+	# end for
+	return files
+# end function
+
+#-------------------------------------------------------------------------------
+#
+def get_backups(path):
+	files = []
+	for dirpath, dirnames, filenames in os.walk(path):
+		# filter directories in-place
+		dirnames[:] = [dirname for dirname in dirnames 
+			if dirname not in EXCLUDE_DIRS]
+		# add files
+		files += [os.path.join(dirpath, filename) for filename in filenames 
+			if filename.endswith(BACKUP_EXT)]
+	# end for
+	return files
 # end function
 
 #-------------------------------------------------------------------------------
@@ -156,7 +222,7 @@ def main():
 		help="text/pattern to find")
 	parser.add_argument('replace', nargs='?',
 		help="replacement text")
-	parser.add_argument('path', nargs='?', default=".",
+	parser.add_argument('-p', '--path', default=".",
 		help="path to file or directory")
 	parser.add_argument('-u', '--undo', action='store_true',
 		help="undo the last replace operation")

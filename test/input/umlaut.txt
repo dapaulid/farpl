@@ -1,0 +1,1 @@
+this is a file with umlauts äöü and a NEEDLE.
